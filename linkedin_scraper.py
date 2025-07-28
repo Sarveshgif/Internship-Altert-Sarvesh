@@ -6,7 +6,7 @@ from email.mime.multipart import MIMEMultipart
 
 # Get secrets from environment
 api_key = os.getenv("SERPAPI_KEY")
-email_password = os.getenv("EMAIL_APP_PASSWORD")
+email_password = os.getenv("EMAIL_APP_KEY")
 sender_email = "sarveshhalbe@gmail.com"
 receiver_email = "sarveshhalbe@gmail.com"
 
