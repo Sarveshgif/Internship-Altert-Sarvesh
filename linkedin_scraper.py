@@ -3,6 +3,25 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import re
+
+# Helper function to parse "posted_at" strings into days ago
+def posted_within_days(posted_str, max_days=3):
+    """
+    Returns True if posted_str indicates the job was posted within max_days.
+    Examples of posted_str: "1 day ago", "2 days ago", "Just posted", "30+ days ago"
+    """
+    if not posted_str:
+        return False
+    posted_str = posted_str.lower()
+    if "just posted" in posted_str or "today" in posted_str or "hour" in posted_str or "minutes" in posted_str:
+        return True
+    match = re.search(r"(\d+)\s+day", posted_str)
+    if match:
+        days = int(match.group(1))
+        return days <= max_days
+    # If it says 30+ days or unknown, exclude
+    return False
 
 # Get secrets from environment
 api_key = os.getenv("SERPAPI_KEY")
@@ -58,18 +77,34 @@ for loc in locations:
             print(f"Reached max pages limit ({max_pages}) for {loc}. Moving to next location.")
             break
 
-# Format email body
-message_body = "🔍 Latest Internship Listings:\n\n"
-for job in all_jobs[:20]:  # Safety cap to 20 jobs
-    message_body += f"🔹 {job.get('title', 'N/A')} at {job.get('company_name', 'N/A')}\n"
-    message_body += f"📍 {job.get('location', 'N/A')}\n"
-    message_body += f"🕓 Posted: {job.get('detected_extensions', {}).get('posted_at', 'Unknown')}\n"
-    message_body += f"👉 Link: {job.get('job_google_link') or job.get('link', 'N/A')}\n\n"
+# Filter jobs posted within last 3 days
+filtered_jobs = []
+for job in all_jobs:
+    posted_at = job.get('detected_extensions', {}).get('posted_at', '')
+    if posted_within_days(posted_at, max_days=3):
+        filtered_jobs.append(job)
+
+print(f"🧮 Total internships posted within last 3 days: {len(filtered_jobs)}")
+
+# Format email body with clickable links
+message_body = "🔍 Latest Internship Listings (posted within last 3 days):\n\n"
+for job in filtered_jobs[:20]:  # Safety cap to 20 jobs
+    title = job.get('title', 'N/A')
+    company = job.get('company_name', 'N/A')
+    location = job.get('location', 'N/A')
+    posted_at = job.get('detected_extensions', {}).get('posted_at', 'Unknown')
+    link = job.get('job_google_link') or job.get('link', 'N/A')
+
+    # Make clickable link in plain text email: just the URL shown
+    message_body += f"🔹 {title} at {company}\n"
+    message_body += f"📍 {location}\n"
+    message_body += f"🕓 Posted: {posted_at}\n"
+    message_body += f"👉 Link: {link}\n\n"
 
 msg = MIMEMultipart()
 msg["From"] = sender_email
 msg["To"] = receiver_email
-msg["Subject"] = "📰 Latest Internship Listings (GitHub Actions)"
+msg["Subject"] = "📰 Latest Internship Listings (Last 3 Days)"
 msg.attach(MIMEText(message_body, "plain"))
 
 try:
