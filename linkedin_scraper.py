@@ -30,6 +30,8 @@ for start in [0, 10]:
     response = requests.get("https://serpapi.com/search", params=params)
     results = response.json()
     all_jobs.extend(results.get("jobs_results", []))
+    print("🧮 Total internships fetched:", len(all_jobs))
+
 
 # Format the email body
 message_body = "🔍 Latest Internship Listings:\n\n"
