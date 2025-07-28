@@ -6,34 +6,40 @@ from email.mime.multipart import MIMEMultipart
 
 # Get secrets from environment
 api_key = os.getenv("SERPAPI_KEY")
-email_password = os.getenv("EMAIL_APP_KEY")  # Your secret name here
+email_password = os.getenv("EMAIL_APP_KEY")
 sender_email = "sarveshhalbe@gmail.com"
 receiver_email = "sarveshhalbe@gmail.com"
 
 # Debug: Check if email password is loaded
 print("🔒 Email password loaded:", bool(email_password))
 
-# Fetch internships from SerpAPI
-params = {
+# Base search parameters
+base_params = {
     "engine": "google_jobs",
-    "q": ""(summer internship OR internship) AND (machine learning OR artificial intelligence OR data science OR software engineer OR software engineering OR computer)",
+    "q": "(summer internship OR internship) AND (machine learning OR artificial intelligence OR data science OR software engineer OR software engineering OR computer)",
     "location": "United States",
     "hl": "en",
     "api_key": api_key
 }
 
-response = requests.get("https://serpapi.com/search", params=params)
-results = response.json()
+# Fetch results from two pages (0–9, 10–19)
+all_jobs = []
+for start in [0, 10]:
+    params = base_params.copy()
+    params["start"] = start
+    response = requests.get("https://serpapi.com/search", params=params)
+    results = response.json()
+    all_jobs.extend(results.get("jobs_results", []))
 
-# Format results
+# Format the email body
 message_body = "🔍 Latest Internship Listings:\n\n"
-for job in results.get("jobs_results", [])[:5]:
+for job in all_jobs[:20]:  # Safety cap
     message_body += f"🔹 {job['title']} at {job['company_name']}\n"
     message_body += f"📍 {job['location']}\n"
     message_body += f"🕓 Posted: {job.get('detected_extensions', {}).get('posted_at', 'Unknown')}\n"
     message_body += f"👉 Link: {job.get('job_google_link') or job.get('link', 'N/A')}\n\n"
 
-# Create email message
+# Create the email
 msg = MIMEMultipart()
 msg["From"] = sender_email
 msg["To"] = receiver_email
