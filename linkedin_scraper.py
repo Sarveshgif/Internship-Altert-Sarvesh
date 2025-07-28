@@ -5,7 +5,7 @@ api_key = os.getenv("SERPAPI_KEY")
 
 base_params = {
     "engine": "google_jobs",
-    "q": "internship",
+    "q": "internship and computer",
     "location": "India",
     "hl": "en",
     "api_key": api_key
