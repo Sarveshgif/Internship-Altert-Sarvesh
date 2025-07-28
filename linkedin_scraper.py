@@ -6,9 +6,12 @@ from email.mime.multipart import MIMEMultipart
 
 # Get secrets from environment
 api_key = os.getenv("SERPAPI_KEY")
-email_password = os.getenv("EMAIL_APP_KEY")
+email_password = os.getenv("EMAIL_APP_KEY")  # Your secret name here
 sender_email = "sarveshhalbe@gmail.com"
 receiver_email = "sarveshhalbe@gmail.com"
+
+# Debug: Check if email password is loaded
+print("🔒 Email password loaded:", bool(email_password))
 
 # Fetch internships from SerpAPI
 params = {
