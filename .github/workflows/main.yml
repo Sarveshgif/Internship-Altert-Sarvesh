@@ -1,0 +1,16 @@
+name: Internship Checker
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'  # every hour
+
+jobs:
+  check_jobs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Print a test message
+        run: echo "This is your first automatic GitHub Action running every hour!"
