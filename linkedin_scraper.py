@@ -16,8 +16,8 @@ print("🔒 Email password loaded:", bool(email_password))
 # Fetch internships from SerpAPI
 params = {
     "engine": "google_jobs",
-    "q": "internship",
-    "location": "India",
+    "q": ""(summer internship OR internship) AND (machine learning OR artificial intelligence OR data science OR software engineer OR software engineering OR computer)",
+    "location": "United States",
     "hl": "en",
     "api_key": api_key
 }
