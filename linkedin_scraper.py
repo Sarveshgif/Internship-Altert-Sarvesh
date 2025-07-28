@@ -15,7 +15,7 @@ print("🔒 Email password loaded:", bool(email_password))
 base_params = {
     "engine": "google_jobs",
     "q": "internship and computer",
-    "location": "India",
+    "location": "USA OR United States OR America",
     "hl": "en",
     "api_key": api_key
 }
