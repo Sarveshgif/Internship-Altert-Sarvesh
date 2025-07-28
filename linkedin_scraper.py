@@ -29,6 +29,8 @@ for start in [0, 10]:
     params["start"] = start
     response = requests.get("https://serpapi.com/search", params=params)
     results = response.json()
+    print("Full API response:")
+    print(results)
     all_jobs.extend(results.get("jobs_results", []))
     print("🧮 Total internships fetched:", len(all_jobs))
 
