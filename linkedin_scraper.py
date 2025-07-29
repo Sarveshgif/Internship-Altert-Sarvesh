@@ -3,41 +3,46 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from collections import defaultdict
+from datetime import datetime
 import re
 
-# Helper function to parse "posted_at" strings into days ago
-def posted_within_days(posted_str, max_days=3):
+# Helper: categorize posting time
+def categorize_posted_time(posted_str):
     """
-    Returns True if posted_str indicates the job was posted within max_days.
-    Examples of posted_str: "1 day ago", "2 days ago", "Just posted", "30+ days ago"
+    Categorizes posting time into: 'Today', 'Yesterday', '2 days ago', '3 days ago', or None (older).
     """
     if not posted_str:
-        return False
+        return None
     posted_str = posted_str.lower()
-    if "just posted" in posted_str or "today" in posted_str or "hour" in posted_str or "minutes" in posted_str:
-        return True
+    if any(kw in posted_str for kw in ["just posted", "today", "hour", "minute"]):
+        return "Today"
     match = re.search(r"(\d+)\s+day", posted_str)
     if match:
         days = int(match.group(1))
-        return days <= max_days
-    # If it says 30+ days or unknown, exclude
-    return False
+        if days == 1:
+            return "Yesterday"
+        elif days == 2:
+            return "2 days ago"
+        elif days == 3:
+            return "3 days ago"
+    return None
 
-# Get secrets from environment
+# Secrets from environment
 api_key = os.getenv("SERPAPI_KEY")
 email_password = os.getenv("EMAIL_APP_KEY")
 sender_email = "sarveshhalbe@gmail.com"
 receiver_email = "sarveshhalbe@gmail.com"
 
-print("🔒 Email password loaded:", bool(email_password))
+print("🔐 Email password loaded:", bool(email_password))
 
-locations = ["USA", "United States", "America"]  # List of locations to search
-
+locations = ["USA", "United States", "America"]
 all_jobs = []
-max_pages = 5  # max pages per location
+max_pages = 5
 
+# Fetch jobs
 for loc in locations:
-    print(f"🔍 Fetching internships for location: {loc}")
+    print(f"🌍 Searching internships in: {loc}")
     base_params = {
         "engine": "google_jobs",
         "q": "internship and computer",
@@ -60,53 +65,61 @@ for loc in locations:
             response.raise_for_status()
             results = response.json()
         except Exception as e:
-            print(f"❌ Request failed for {loc}: {e}")
+            print(f"❌ Error fetching for {loc}: {e}")
             break
 
         jobs = results.get("jobs_results", [])
         all_jobs.extend(jobs)
-        print(f"🧮 Total internships fetched so far: {len(all_jobs)}")
+        print(f"📥 Total fetched so far: {len(all_jobs)}")
 
         next_page_token = results.get("next_page_token")
         pages_fetched += 1
 
-        if not next_page_token:
-            print(f"No more pages for {loc}. Moving to next location.")
-            break
-        if pages_fetched >= max_pages:
-            print(f"Reached max pages limit ({max_pages}) for {loc}. Moving to next location.")
+        if not next_page_token or pages_fetched >= max_pages:
             break
 
-# Filter jobs posted within last 3 days
-filtered_jobs = []
+# Group by posting time
+categorized_jobs = defaultdict(list)
 for job in all_jobs:
     posted_at = job.get('detected_extensions', {}).get('posted_at', '')
-    if posted_within_days(posted_at, max_days=3):
-        filtered_jobs.append(job)
+    category = categorize_posted_time(posted_at)
+    if category:
+        categorized_jobs[category].append(job)
 
-print(f"🧮 Total internships posted within last 3 days: {len(filtered_jobs)}")
+# Print summary
+print("📊 Jobs by day:")
+for day in ["Today", "Yesterday", "2 days ago", "3 days ago"]:
+    print(f"➡️ {day}: {len(categorized_jobs[day])} jobs")
 
-# Format email body with clickable links
-message_body = "🔍 Latest Internship Listings (posted within last 3 days):\n\n"
-for job in filtered_jobs[:20]:  # Safety cap to 20 jobs
-    title = job.get('title', 'N/A')
-    company = job.get('company_name', 'N/A')
-    location = job.get('location', 'N/A')
-    posted_at = job.get('detected_extensions', {}).get('posted_at', 'Unknown')
-    link = job.get('job_google_link') or job.get('link', 'N/A')
+# Build email body
+message_body = f"🗓️ Internship Digest — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+message_body += "🔍 Showing internships posted in the last 3 days:\n\n"
 
-    # Make clickable link in plain text email: just the URL shown
-    message_body += f"🔹 {title} at {company}\n"
-    message_body += f"📍 {location}\n"
-    message_body += f"🕓 Posted: {posted_at}\n"
-    message_body += f"👉 Link: {link}\n\n"
+for day in ["Today", "Yesterday", "2 days ago", "3 days ago"]:
+    jobs = categorized_jobs.get(day, [])
+    if not jobs:
+        continue
+    message_body += f"📅 {day} ({len(jobs)} jobs):\n"
+    for job in jobs[:10]:  # Max 10 per category
+        title = job.get('title', 'N/A')
+        company = job.get('company_name', 'N/A')
+        location = job.get('location', 'N/A')
+        posted_at = job.get('detected_extensions', {}).get('posted_at', 'Unknown')
+        link = job.get('job_google_link') or job.get('link', 'N/A')
 
+        message_body += f"🔹 {title} at {company}\n"
+        message_body += f"📍 {location} | 🕓 {posted_at}\n"
+        message_body += f"👉 {link}\n\n"
+    message_body += "\n"
+
+# Email setup
 msg = MIMEMultipart()
 msg["From"] = sender_email
 msg["To"] = receiver_email
-msg["Subject"] = "📰 Latest Internship Listings (Last 3 Days)"
+msg["Subject"] = "📰 Internship Listings (Last 3 Days)"
 msg.attach(MIMEText(message_body, "plain"))
 
+# Send the email
 try:
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
         server.login(sender_email, email_password)
