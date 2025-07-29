@@ -6,22 +6,23 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 import re
 
-# ========= CONFIGURATION ===========
+# ========== CONFIGURATION ==========
 SERP_API_KEY = os.getenv("SERPAPI_KEY")
 EMAIL_PASSWORD = os.getenv("EMAIL_APP_KEY")
 SENDER_EMAIL = "sarveshhalbe@gmail.com"
 RECEIVER_EMAIL = "sarveshhalbe@gmail.com"
+
 MAX_RESULTS = 20
 SEARCH_QUERY = "internship computer OR software OR programming OR development"
 LOCATIONS = ["USA", "United States", "America"]
 MAX_PAGES = 5
 # ===================================
 
-# Smarter time categorizer
+# Parse relative posting time
 def parse_posted_date(posted_str):
     if not posted_str:
         return None
-    posted_str = posted_str.lower().strip()
+    posted_str = posted_str.lower()
 
     if any(kw in posted_str for kw in ["just posted", "today", "hour", "minute"]):
         return datetime.today()
@@ -31,7 +32,7 @@ def parse_posted_date(posted_str):
     if match:
         return datetime.today() - timedelta(days=int(match.group(1)))
 
-    return None  # fallback
+    return None  # unknown format
 
 # Fetch jobs from SerpAPI
 def fetch_jobs():
@@ -73,35 +74,41 @@ def fetch_jobs():
 
     return all_jobs
 
-# Filter and sort recent jobs
+# Filter and prioritize recent jobs
 def filter_recent_jobs(jobs):
-    parsed_jobs = []
+    dated = []
+    undated = []
+
     for job in jobs:
         title = job.get("title", "N/A").strip()
         company = job.get("company_name", "N/A").strip()
         location = job.get("location", "N/A").strip()
-        link = job.get("job_google_link") or job.get("link", "N/A")
+        link = job.get("job_google_link") or job.get("link") or "No link provided"
         posted_raw = job.get("detected_extensions", {}).get("posted_at", '')
 
-        # Try to parse date
         posted_date = parse_posted_date(posted_raw)
 
+        entry = {
+            "title": title,
+            "company": company,
+            "location": location,
+            "posted": posted_date,
+            "posted_raw": posted_raw or "Unknown",
+            "link": link
+        }
+
         if posted_date:
-            parsed_jobs.append({
-                "title": title,
-                "company": company,
-                "location": location,
-                "posted": posted_date,
-                "posted_raw": posted_raw,
-                "link": link
-            })
+            dated.append(entry)
+        else:
+            undated.append(entry)
 
-    print(f"📅 {len(parsed_jobs)} jobs with valid posting dates found.")
-    # Sort most recent first
-    parsed_jobs.sort(key=lambda x: x["posted"], reverse=True)
-    return parsed_jobs[:MAX_RESULTS]
+    print(f"📅 {len(dated)} jobs with valid posting dates, {len(undated)} jobs with unknown dates.")
+    # Sort jobs with dates first
+    dated.sort(key=lambda x: x["posted"], reverse=True)
+    combined = dated + undated
+    return combined[:MAX_RESULTS]
 
-# Build email body
+# Build email content
 def build_email(jobs):
     header = f"🗓️ Internship Digest — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
     header += f"🔍 Top {MAX_RESULTS} most recent internships:\n\n"
@@ -114,7 +121,7 @@ def build_email(jobs):
 
     return header + body
 
-# Send email
+# Send email using Gmail SMTP
 def send_email(subject, content):
     msg = MIMEMultipart()
     msg["From"] = SENDER_EMAIL
@@ -130,7 +137,7 @@ def send_email(subject, content):
     except Exception as e:
         print(f"❌ Email send failed: {e}")
 
-# ====== MAIN EXECUTION =========
+# ========== MAIN EXECUTION ==========
 def main():
     if not SERP_API_KEY:
         print("🚫 Missing SerpAPI key.")
@@ -140,9 +147,13 @@ def main():
         return
 
     jobs_raw = fetch_jobs()
+    if not jobs_raw:
+        print("⚠️ No jobs fetched.")
+        return
+
     recent_jobs = filter_recent_jobs(jobs_raw)
     if not recent_jobs:
-        print("⚠️ No recent jobs found.")
+        print("⚠️ No jobs to show after filtering.")
         return
 
     email_body = build_email(recent_jobs)
